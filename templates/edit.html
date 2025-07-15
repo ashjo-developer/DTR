@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Edit Day {{ index + 1 }}</title>
+</head>
+<body>
+    <h2>Edit Day {{ index + 1 }}</h2>
+    <form method="POST">
+        <label>Morning Arrival:</label>
+        <input type="time" name="m_arrive" value="{{ day['Morning Arrival'] }}" required><br>
+        <label>Morning Departure:</label>
+        <input type="time" name="m_depart" value="{{ day['Morning Departure'] }}" required><br>
+        <label>Afternoon Arrival:</label>
+        <input type="time" name="a_arrive" value="{{ day['Afternoon Arrival'] }}" required><br>
+        <label>Afternoon Departure:</label>
+        <input type="time" name="a_depart" value="{{ day['Afternoon Departure'] }}" required><br><br>
+        <button type="submit">✅ Save Changes</button>
+        <a href="/">🔙 Back</a>
+    </form>
+</body>
+</html>

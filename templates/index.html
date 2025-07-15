@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Work Hours Calculator</title>
+    <style>
+        body { font-family: Arial; margin: 2rem; }
+        input { padding: 5px; margin: 3px; }
+        table, th, td { border: 1px solid black; border-collapse: collapse; padding: 5px; }
+        th { background-color: #eee; }
+        .btn { padding: 6px 10px; margin-top: 10px; }
+        .add-btn { background-color: #28a745; color: white; border: none; }
+    </style>
+    <script>
+        let dayIndex = 0;
+
+        function addDayRow() {
+            const container = document.getElementById("day-container");
+            const html = `
+                <div class="day-row">
+                    <h4>Day ${dayIndex + 1}</h4>
+                    <input type="time" name="m_arrive_${dayIndex}" required> Morning Arrival
+                    <input type="time" name="m_depart_${dayIndex}" required> Morning Departure
+                    <input type="time" name="a_arrive_${dayIndex}" required> Afternoon Arrival
+                    <input type="time" name="a_depart_${dayIndex}" required> Afternoon Departure
+                    <hr>
+                </div>`;
+            container.insertAdjacentHTML('beforeend', html);
+            dayIndex++;
+            document.getElementById("day_count").value = dayIndex;
+        }
+    </script>
+</head>
+<body>
+
+<h2>Work Hours Calculator</h2>
+
+<form method="POST">
+    <input type="hidden" name="day_count" id="day_count" value="0">
+    <div id="day-container"></div>
+    <button type="button" onclick="addDayRow()" class="btn add-btn">➕ Add Day</button>
+    <br>
+    <button type="submit" class="btn">🧮 Calculate</button>
+    <a href="/?reset=1" class="btn" style="background-color: crimson; color:white;">🔄 Start Over</a>
+    {% if csv_ready %}
+        <a href="/download_csv" class="btn" style="background-color: dodgerblue; color:white;">⬇️ Download CSV</a>
+    {% endif %}
+</form>
+
+{% if breakdown %}
+    <h3>Summary Table</h3>
+    <table>
+        <tr>
+            <th>Day</th><th>Morning Arrival</th><th>Morning Departure</th>
+            <th>Afternoon Arrival</th><th>Afternoon Departure</th>
+            <th>Hours</th><th>Minutes</th>
+        </tr>
+        {% for row in breakdown %}
+        <tr>
+            <td>{{ row['Day'] }}</td>
+            <td>{{ row['Morning Arrival'] }}</td>
+            <td>{{ row['Morning Departure'] }}</td>
+            <td>{{ row['Afternoon Arrival'] }}</td>
+            <td>{{ row['Afternoon Departure'] }}</td>
+            <td>{{ row['Hours'] }}</td>
+            <td>{{ row['Minutes'] }}</td>
+            <td><a href="/edit/{{ loop.index0 }}">✏️ Edit</a></td>
+        </tr>
+        {% endfor %}
+    </table>
+    <p><strong>Total Completed:</strong> {{ hours }} hours and {{ minutes }} minutes</p>
+{% endif %}
+
+</body>
+</html>
