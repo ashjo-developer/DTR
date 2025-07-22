@@ -26,6 +26,13 @@ def format_date_display(date_str):
     except:
         return date_str
 
+def normalize_time(hours, minutes):
+    """Convert excess minutes to hours and return normalized values"""
+    total_minutes = hours * 60 + minutes
+    normalized_hours = total_minutes // 60
+    normalized_minutes = total_minutes % 60
+    return int(normalized_hours), int(normalized_minutes)
+
 @app.route("/", methods=["GET", "POST"])
 def index():
     if request.method == "GET" and request.args.get("reset") == "1":
@@ -88,14 +95,20 @@ def index():
 
         session["breakdown"] = session.get("breakdown", []) + breakdown[:-1]
         session["day_offset"] = day_offset + day_count
-        session["total_hours"] = session.get("total_hours", 0) + total_hours
-        session["total_minutes"] = session.get("total_minutes", 0) + total_minutes
+        
+        # Fix: Properly accumulate and normalize total time
+        existing_hours = session.get("total_hours", 0)
+        existing_minutes = session.get("total_minutes", 0)
+        new_total_hours, new_total_minutes = normalize_time(existing_hours + total_hours, existing_minutes + total_minutes)
+        
+        session["total_hours"] = new_total_hours
+        session["total_minutes"] = new_total_minutes
 
         current_breakdown = session["breakdown"]
         current_breakdown.sort(key=lambda x: x["Date"] if x["Date"] and x["Date"] != "-" else "9999-12-31")
         session["breakdown"] = current_breakdown
 
-        # ✅ FIXED CSV EXPORT BELOW
+        # CSV export with normalized totals
         csv_path = os.path.join(app.config['REPORT_FOLDER'], 'work_hours_report.csv')
         with open(csv_path, 'w', newline='') as csvfile:
             fieldnames = ["Day", "Date", "Morning Arrival", "Morning Departure",
@@ -107,7 +120,17 @@ def index():
                 clean_row = {key: row.get(key, "") for key in fieldnames}
                 writer.writerow(clean_row)
 
-            total_row = {key: breakdown[-1].get(key, "") for key in fieldnames}
+            # Write normalized total
+            total_row = {
+                "Day": "TOTAL",
+                "Date": "-",
+                "Morning Arrival": "-",
+                "Morning Departure": "-",
+                "Afternoon Arrival": "-",
+                "Afternoon Departure": "-",
+                "Hours": new_total_hours,
+                "Minutes": new_total_minutes
+            }
             writer.writerow(total_row)
 
         return redirect(url_for("index"))
@@ -115,6 +138,12 @@ def index():
     breakdown = session.get("breakdown", [])
     total_hours = session.get("total_hours", 0)
     total_minutes = session.get("total_minutes", 0)
+    
+    # Ensure totals are normalized when displaying
+    total_hours, total_minutes = normalize_time(total_hours, total_minutes)
+    session["total_hours"] = total_hours
+    session["total_minutes"] = total_minutes
+    
     csv_ready = bool(breakdown)
     today = datetime.now().strftime("%Y-%m-%d")
 
@@ -166,12 +195,18 @@ def edit_entry(index):
         breakdown.sort(key=lambda x: x["Date"] if x["Date"] and x["Date"] != "-" else "9999-12-31")
         session["breakdown"] = breakdown
 
+        # Recalculate total with normalization
         total_duration = timedelta()
         for row in breakdown:
             duration = timedelta(hours=row["Hours"], minutes=row["Minutes"])
             total_duration += duration
-        session["total_hours"] = int(total_duration.total_seconds() // 3600)
-        session["total_minutes"] = int((total_duration.total_seconds() % 3600) // 60)
+        
+        total_hours = int(total_duration.total_seconds() // 3600)
+        total_minutes = int((total_duration.total_seconds() % 3600) // 60)
+        total_hours, total_minutes = normalize_time(total_hours, total_minutes)
+        
+        session["total_hours"] = total_hours
+        session["total_minutes"] = total_minutes
 
         return redirect(url_for("index"))
 
@@ -225,8 +260,14 @@ def upload_csv():
     
     session["breakdown"] = breakdown
     session["day_offset"] = len(breakdown)
-    session["total_hours"] = int(total_duration.total_seconds() // 3600)
-    session["total_minutes"] = int((total_duration.total_seconds() % 3600) // 60)
+    
+    # Normalize the total time
+    total_hours = int(total_duration.total_seconds() // 3600)
+    total_minutes = int((total_duration.total_seconds() % 3600) // 60)
+    total_hours, total_minutes = normalize_time(total_hours, total_minutes)
+    
+    session["total_hours"] = total_hours
+    session["total_minutes"] = total_minutes
 
     return redirect(url_for("index"))
 
