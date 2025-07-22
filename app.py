@@ -1,4 +1,3 @@
-# app.py
 from flask import Flask, render_template, request, redirect, url_for, session, send_file
 from datetime import datetime, timedelta
 import csv, os, io
@@ -20,6 +19,13 @@ def compute_duration(start_str, end_str):
     except Exception:
         return timedelta(0)
 
+def format_date_display(date_str):
+    try:
+        date_obj = datetime.strptime(date_str, "%Y-%m-%d")
+        return date_obj.strftime("%B %d, %Y")
+    except:
+        return date_str
+
 @app.route("/", methods=["GET", "POST"])
 def index():
     if request.method == "GET" and request.args.get("reset") == "1":
@@ -37,6 +43,7 @@ def index():
             day_count = 0
 
         for i in range(day_count):
+            date = request.form.get(f"date_{i}", "")
             m_arrive = request.form.get(f"m_arrive_{i}", "")
             m_depart = request.form.get(f"m_depart_{i}", "")
             a_arrive = request.form.get(f"a_arrive_{i}", "")
@@ -52,8 +59,11 @@ def index():
             hours = int(day_total.total_seconds() // 3600)
             minutes = int((day_total.total_seconds() % 3600) // 60)
 
+            day_display = format_date_display(date) if date else f"Day {i + 1 + day_offset}"
+
             breakdown.append({
-                "Day": f"Day {i + 1 + day_offset}",
+                "Day": day_display,
+                "Date": date,
                 "Morning Arrival": m_arrive,
                 "Morning Departure": m_depart,
                 "Afternoon Arrival": a_arrive,
@@ -67,6 +77,7 @@ def index():
 
         breakdown.append({
             "Day": "TOTAL",
+            "Date": "-",
             "Morning Arrival": "-",
             "Morning Departure": "-",
             "Afternoon Arrival": "-",
@@ -80,15 +91,24 @@ def index():
         session["total_hours"] = session.get("total_hours", 0) + total_hours
         session["total_minutes"] = session.get("total_minutes", 0) + total_minutes
 
+        current_breakdown = session["breakdown"]
+        current_breakdown.sort(key=lambda x: x["Date"] if x["Date"] and x["Date"] != "-" else "9999-12-31")
+        session["breakdown"] = current_breakdown
+
+        # ✅ FIXED CSV EXPORT BELOW
         csv_path = os.path.join(app.config['REPORT_FOLDER'], 'work_hours_report.csv')
         with open(csv_path, 'w', newline='') as csvfile:
-            fieldnames = ["Day", "Morning Arrival", "Morning Departure",
+            fieldnames = ["Day", "Date", "Morning Arrival", "Morning Departure",
                           "Afternoon Arrival", "Afternoon Departure", "Hours", "Minutes"]
             writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
             writer.writeheader()
+
             for row in session["breakdown"]:
-                writer.writerow(row)
-            writer.writerow(breakdown[-1])
+                clean_row = {key: row.get(key, "") for key in fieldnames}
+                writer.writerow(clean_row)
+
+            total_row = {key: breakdown[-1].get(key, "") for key in fieldnames}
+            writer.writerow(total_row)
 
         return redirect(url_for("index"))
 
@@ -96,10 +116,12 @@ def index():
     total_hours = session.get("total_hours", 0)
     total_minutes = session.get("total_minutes", 0)
     csv_ready = bool(breakdown)
+    today = datetime.now().strftime("%Y-%m-%d")
 
     if csv_ready:
         breakdown = breakdown + [{
             "Day": "TOTAL",
+            "Date": "-",
             "Morning Arrival": "-",
             "Morning Departure": "-",
             "Afternoon Arrival": "-",
@@ -109,7 +131,7 @@ def index():
         }]
 
     return render_template("index.html", hours=total_hours, minutes=total_minutes,
-                           breakdown=breakdown, csv_ready=csv_ready)
+                           breakdown=breakdown, csv_ready=csv_ready, today=today)
 
 @app.route("/edit/<int:index>", methods=["GET", "POST"])
 def edit_entry(index):
@@ -118,12 +140,15 @@ def edit_entry(index):
         return redirect(url_for("index"))
 
     if request.method == "POST":
+        date = request.form.get("date")
         m_arrive = request.form.get("m_arrive")
         m_depart = request.form.get("m_depart")
         a_arrive = request.form.get("a_arrive")
         a_depart = request.form.get("a_depart")
 
         entry = breakdown[index]
+        entry["Date"] = date
+        entry["Day"] = format_date_display(date) if date else f"Day {index + 1}"
         entry["Morning Arrival"] = m_arrive
         entry["Morning Departure"] = m_depart
         entry["Afternoon Arrival"] = a_arrive
@@ -138,6 +163,7 @@ def edit_entry(index):
         entry["Hours"] = int(day_total.total_seconds() // 3600)
         entry["Minutes"] = int((day_total.total_seconds() % 3600) // 60)
 
+        breakdown.sort(key=lambda x: x["Date"] if x["Date"] and x["Date"] != "-" else "9999-12-31")
         session["breakdown"] = breakdown
 
         total_duration = timedelta()
@@ -167,6 +193,8 @@ def upload_csv():
         if row["Day"] == "TOTAL":
             continue
 
+        day = row.get("Day", "")
+        date = row.get("Date", "")
         m_arrive = row.get("Morning Arrival", "")
         m_depart = row.get("Morning Departure", "")
         a_arrive = row.get("Afternoon Arrival", "")
@@ -183,7 +211,8 @@ def upload_csv():
         minutes = int((day_total.total_seconds() % 3600) // 60)
 
         breakdown.append({
-            "Day": row["Day"],
+            "Day": day,
+            "Date": date,
             "Morning Arrival": m_arrive,
             "Morning Departure": m_depart,
             "Afternoon Arrival": a_arrive,
@@ -192,6 +221,8 @@ def upload_csv():
             "Minutes": minutes
         })
 
+    breakdown.sort(key=lambda x: x["Date"] if x["Date"] and x["Date"] != "-" else "9999-12-31")
+    
     session["breakdown"] = breakdown
     session["day_offset"] = len(breakdown)
     session["total_hours"] = int(total_duration.total_seconds() // 3600)

@@ -9,85 +9,135 @@
     table { border-collapse: collapse; width: 100%; margin-top: 20px; background: white; }
     th, td { border: 1px solid #ccc; padding: 8px; text-align: center; }
     th { background: #eee; }
-    input[type="time"] { width: 100%; }
+    input[type="time"], input[type="date"] { width: 100%; padding: 4px; }
     .actions { margin-top: 20px; }
-    .actions button, .actions a { margin-right: 10px; }
+    .actions button, .actions a { margin-right: 10px; padding: 10px 15px; }
+    .btn-primary { background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; }
+    .btn-success { background: #28a745; color: white; border: none; border-radius: 4px; cursor: pointer; }
+    .btn-secondary { background: #6c757d; color: white; border: none; border-radius: 4px; cursor: pointer; }
+    .btn-primary:hover { background: #0056b3; }
+    .btn-success:hover { background: #1e7e34; }
+    .btn-secondary:hover { background: #545b62; }
+    .date-column { min-width: 140px; }
+    .time-column { min-width: 100px; }
+    .quick-date-buttons { margin-bottom: 10px; }
+    .quick-date-buttons button { 
+      margin-right: 5px; 
+      margin-bottom: 5px;
+      padding: 5px 10px; 
+      font-size: 12px;
+      background: #f8f9fa;
+      border: 1px solid #dee2e6;
+      border-radius: 3px;
+      cursor: pointer;
+    }
+    .quick-date-buttons button:hover { background: #e9ecef; }
+    .total-summary { 
+      background: #d4edda; 
+      padding: 15px; 
+      border-radius: 8px; 
+      margin: 20px 0; 
+      border: 1px solid #c3e6cb;
+    }
+    .upload-section {
+      background: white;
+      padding: 15px;
+      border-radius: 8px;
+      margin: 20px 0;
+      border: 1px solid #dee2e6;
+    }
+    .breakdown-table { font-size: 14px; }
+    .total-row { background: #f8f9fa; font-weight: bold; }
   </style>
 </head>
 <body>
-  <h1>DTR Calculator</h1>
-
+  <h1>📅 DTR Calculator with Date Tracking</h1>
+  
+  <div class="quick-date-buttons">
+    <strong>Quick Actions:</strong>
+    <button type="button" onclick="setAllDatesToToday()">📅 Set All to Today</button>
+    <button type="button" onclick="setConsecutiveDates()">📆 Set Consecutive Dates</button>
+    <button type="button" onclick="setWeekdays()">📋 Set This Week (Mon-Fri)</button>
+  </div>
+  
   <form method="POST">
     <input type="hidden" name="day_count" id="day_count" value="1" />
     <table id="inputTable">
       <thead>
         <tr>
-          <th>Day</th>
-          <th>Morning Arrival</th>
-          <th>Morning Departure</th>
-          <th>Afternoon Arrival</th>
-          <th>Afternoon Departure</th>
+          <th class="date-column">Date</th>
+          <th class="time-column">Morning Arrival</th>
+          <th class="time-column">Morning Departure</th>
+          <th class="time-column">Afternoon Arrival</th>
+          <th class="time-column">Afternoon Departure</th>
+          <th>Actions</th>
         </tr>
       </thead>
       <tbody>
         <tr>
-          <td>Day 1</td>
+          <td><input type="date" name="date_0" value="{{ today }}" /></td>
           <td><input type="time" name="m_arrive_0" /></td>
           <td><input type="time" name="m_depart_0" /></td>
           <td><input type="time" name="a_arrive_0" /></td>
           <td><input type="time" name="a_depart_0" /></td>
+          <td><button type="button" onclick="removeRow(this)" class="btn-secondary" style="padding: 5px 8px;">❌</button></td>
         </tr>
       </tbody>
     </table>
     <div class="actions">
-      <button type="button" onclick="addRow()">➕ Add Day</button>
-      <button type="submit">✅ Calculate</button>
-      <a href="?reset=1"><button type="button">🔄 Start Over</button></a>
+      <button type="button" onclick="addRow()" class="btn-primary">➕ Add Day</button>
+      <button type="submit" class="btn-success">✅ Calculate Hours</button>
+      <a href="?reset=1"><button type="button" class="btn-secondary">🔄 Start Over</button></a>
     </div>
   </form>
-
-  <form method="POST" action="/upload_csv" enctype="multipart/form-data" style="margin-top: 20px;">
-    <label for="csv_file">📤 Import CSV:</label>
-    <input type="file" name="csv_file" accept=".csv" />
-    <button type="submit">Upload</button>
-  </form>
-
-  {% if csv_ready %}
-    <div style="margin-top: 20px;">
-      <a href="/download_csv"><button>⬇️ Download CSV</button></a>
-    </div>
+  
+  <div class="upload-section">
+    <h3>📤 Import/Export CSV</h3>
+    <form method="POST" action="/upload_csv" enctype="multipart/form-data" style="display: inline-block;">
+      <input type="file" name="csv_file" accept=".csv" style="margin-right: 10px;" />
+      <button type="submit" class="btn-primary">📥 Upload CSV</button>
+    </form>
+    
+    {% if csv_ready %}
+      <a href="/download_csv" style="margin-left: 15px;"><button class="btn-success">⬇️ Download CSV</button></a>
+    {% endif %}
+  </div>
+  
+  {% if hours > 0 or minutes > 0 %}
+  <div class="total-summary">
+    <h2>⏱️ Total Hours Summary</h2>
+    <p style="font-size: 18px; margin: 0;"><strong>Total Completed: {{ hours }}h {{ minutes }}m</strong></p>
+  </div>
   {% endif %}
-
-  <h2>Breakdown</h2>
-  <p>Total Completed: <strong>{{ hours }}h {{ minutes }}m</strong></p>
-
+  
   {% if breakdown %}
-  <table>
+  <h2>📊 Detailed Breakdown</h2>
+  <table class="breakdown-table">
     <thead>
       <tr>
-        <th>Day</th>
+        <th>Date</th>
         <th>Morning Arrival</th>
         <th>Morning Departure</th>
         <th>Afternoon Arrival</th>
         <th>Afternoon Departure</th>
         <th>Hours</th>
         <th>Minutes</th>
-        <th>Edit</th>
+        <th>Actions</th>
       </tr>
     </thead>
     <tbody>
       {% for entry in breakdown %}
-        <tr>
+        <tr class="{% if entry.Day == 'TOTAL' %}total-row{% endif %}">
           <td>{{ entry.Day }}</td>
-          <td>{{ entry['Morning Arrival'] }}</td>
-          <td>{{ entry['Morning Departure'] }}</td>
-          <td>{{ entry['Afternoon Arrival'] }}</td>
-          <td>{{ entry['Afternoon Departure'] }}</td>
+          <td>{{ entry['Morning Arrival'] if entry['Morning Arrival'] != '-' else '-' }}</td>
+          <td>{{ entry['Morning Departure'] if entry['Morning Departure'] != '-' else '-' }}</td>
+          <td>{{ entry['Afternoon Arrival'] if entry['Afternoon Arrival'] != '-' else '-' }}</td>
+          <td>{{ entry['Afternoon Departure'] if entry['Afternoon Departure'] != '-' else '-' }}</td>
           <td>{{ entry.Hours }}</td>
           <td>{{ entry.Minutes }}</td>
           <td>
             {% if entry.Day != 'TOTAL' %}
-            <a href="/edit/{{ loop.index0 }}">✏️ Edit</a>
+            <a href="/edit/{{ loop.index0 }}"><button type="button" class="btn-primary" style="padding: 5px 8px;">✏️ Edit</button></a>
             {% else %}
             -
             {% endif %}
@@ -97,23 +147,106 @@
     </tbody>
   </table>
   {% endif %}
-
+  
   <script>
     let dayCount = 1;
+    
     function addRow() {
       const table = document.getElementById("inputTable").getElementsByTagName("tbody")[0];
       const row = table.insertRow();
+      
+      const today = new Date().toISOString().split('T')[0];
+      
       row.innerHTML = `
-        <td>Day ${dayCount + 1}</td>
+        <td><input type="date" name="date_${dayCount}" value="${today}" /></td>
         <td><input type="time" name="m_arrive_${dayCount}" /></td>
         <td><input type="time" name="m_depart_${dayCount}" /></td>
         <td><input type="time" name="a_arrive_${dayCount}" /></td>
         <td><input type="time" name="a_depart_${dayCount}" /></td>
+        <td><button type="button" onclick="removeRow(this)" class="btn-secondary" style="padding: 5px 8px;">❌</button></td>
       `;
+      
       dayCount++;
       document.getElementById("day_count").value = dayCount;
     }
+    
+    function removeRow(button) {
+      const row = button.closest('tr');
+      const table = row.closest('tbody');
+      
+      if (table.children.length > 1) {
+        row.remove();
+        dayCount--;
+        document.getElementById("day_count").value = Math.max(1, dayCount);
+        
+        // Update remaining row indices
+        updateRowIndices();
+      } else {
+        alert('Cannot remove the last row. At least one day entry is required.');
+      }
+    }
+    
+    function updateRowIndices() {
+      const rows = document.querySelectorAll('#inputTable tbody tr');
+      rows.forEach((row, index) => {
+        const inputs = row.querySelectorAll('input');
+        inputs.forEach(input => {
+          const name = input.name;
+          const baseName = name.split('_')[0] + '_' + name.split('_')[1];
+          input.name = baseName + '_' + index;
+        });
+      });
+      dayCount = rows.length;
+      document.getElementById("day_count").value = dayCount;
+    }
+    
+    function setAllDatesToToday() {
+      const today = new Date().toISOString().split('T')[0];
+      const dateInputs = document.querySelectorAll('input[type="date"]');
+      dateInputs.forEach(input => {
+        input.value = today;
+      });
+    }
+    
+    function setConsecutiveDates() {
+      const dateInputs = document.querySelectorAll('input[type="date"]');
+      const startDate = new Date();
+      
+      dateInputs.forEach((input, index) => {
+        const currentDate = new Date(startDate);
+        currentDate.setDate(startDate.getDate() + index);
+        input.value = currentDate.toISOString().split('T')[0];
+      });
+    }
+    
+    function setWeekdays() {
+      const dateInputs = document.querySelectorAll('input[type="date"]');
+      const today = new Date();
+      const currentDay = today.getDay(); // 0 = Sunday, 1 = Monday, etc.
+      
+      // Calculate the Monday of current week
+      const monday = new Date(today);
+      const daysToMonday = currentDay === 0 ? -6 : 1 - currentDay;
+      monday.setDate(today.getDate() + daysToMonday);
+      
+      // Ensure we have at least 5 rows for weekdays
+      while (dayCount < 5) {
+        addRow();
+      }
+      
+      // Set dates for Monday through Friday
+      for (let i = 0; i < Math.min(5, dateInputs.length); i++) {
+        const weekday = new Date(monday);
+        weekday.setDate(monday.getDate() + i);
+        dateInputs[i].value = weekday.toISOString().split('T')[0];
+      }
+    }
+    
+    // Set default time values when page loads
+    document.addEventListener('DOMContentLoaded', function() {
+      // You can set default times here if needed
+      // For example: morning arrival at 8:00 AM, departure at 12:00 PM, etc.
+    });
   </script>
 </body>
 </html>
-
